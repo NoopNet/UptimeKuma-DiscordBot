@@ -1,10 +1,11 @@
 // === Uptime Kuma Discord Bot ===
-// Full version with environment variables only
-// (no config.json required)
+// Full production version for Coolify (no config.json required)
 
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-require('dotenv').config(); // optional, just in case .env is used locally
+const fs = require('fs');
+const path = require('path');
+require('dotenv').config(); // optional for local .env support
 
 // === CONFIG LOADER ===
 function loadConfig() {
@@ -29,11 +30,11 @@ function loadConfig() {
     };
 
     // === Debug Info ===
-    console.log("Loaded from ENV:");
+    console.log("Loaded ENV Variables:");
     console.table({
         DISCORD_TOKEN: config.token ? "✅ set" : "❌ missing",
-        DISCORD_GUILD_ID: config.guildID,
-        DISCORD_CHANNEL_ID: config.channelID,
+        DISCORD_GUILD_ID: config.guildID || "❌ missing",
+        DISCORD_CHANNEL_ID: config.channelID || "❌ missing",
         BACKEND_URL: config.urls.backend,
         KUMA_URL: config.urls.uptimeKumaBase,
     });
@@ -64,7 +65,7 @@ let monitorMessages = Object.keys(config.monitorGroups).reduce((acc, groupName) 
     return acc;
 }, {});
 
-// === BOT START ===
+// === BOT READY EVENT ===
 client.once('ready', async () => {
     console.log(`✅ Bot is online as ${client.user.tag}`);
 
@@ -87,7 +88,7 @@ client.once('ready', async () => {
     }
 });
 
-// === UPDATE STATUS MESSAGES ===
+// === MAIN UPDATE FUNCTION ===
 async function updateMessages() {
     try {
         console.log("🌐 Fetching monitors from:", config.urls.backend);
@@ -107,7 +108,7 @@ async function updateMessages() {
     }
 }
 
-// === SEND / UPDATE EMBEDS ===
+// === SEND OR UPDATE EMBED MESSAGE ===
 async function sendMonitorsMessage(channel, category, monitors) {
     let description = monitors.map(m => {
         const emoji = ['🔴', '🟢', '🟡', '🔵'][m.status] || '❓';
@@ -138,7 +139,7 @@ async function sendMonitorsMessage(channel, category, monitors) {
     }
 }
 
-// === CLEAR CHANNEL ===
+// === CLEAR CHANNEL ON START ===
 async function clearChannel(channel) {
     try {
         const fetched = await channel.messages.fetch();
@@ -149,7 +150,21 @@ async function clearChannel(channel) {
     }
 }
 
-// === LOGIN ===
+// === DISCORD LOGIN ===
 client.login(config.token).catch(err => {
     console.error("❌ Discord Login failed:", err.message);
 });
+
+// === OPTIONAL HEALTH ENDPOINT ===
+// Helps Coolify show "Healthy" instead of "Degraded"
+const http = require('http');
+const port = process.env.HEALTH_PORT || 3000;
+http.createServer((req, res) => {
+    if (req.url === '/healthz') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('ok');
+    } else {
+        res.writeHead(404);
+        res.end();
+    }
+}).listen(port, () => console.log(`❤️ Health endpoint active on :${port}`));

@@ -1,0 +1,5 @@
+[phases.setup]
+nixPkgs = ["php83", "apacheHttpd"]
+
+[start]
+cmd = "apachectl -D FOREGROUND"

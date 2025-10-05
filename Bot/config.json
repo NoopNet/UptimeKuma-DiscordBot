@@ -1,13 +1,13 @@
 {
-    "token": "${Discord_Token}",
+    "token": "${DISCORD_TOKEN}",
     "guildID": "1329151068340490350",
     "channelID": "1424315293647376385",
     "clientID": "1424366955250323613",
     "updateTime": 60,
     "embedColor": "#0099ff",
-    "uptimeKumaAPIKey": "uk2_V_gzASwwtvoJ8PTW2nZ6vtici3-bAkX5SyacCRXC",
+    "uptimeKumaAPIKey": "${API_KEY}",
     "urls": {
-        "uptimeKumaBase": "<uptime_kuma_base_url>",
+        "uptimeKumaBase": "${KUMA_URL}",
         "uptimeKumaDashboard": "https://uptime-api.uptime.noopnet.net/api",
         "backend": "https://uptime-api.uptime.noopnet.net/api"
     },

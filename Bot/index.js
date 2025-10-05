@@ -1,17 +1,12 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-
 function loadConfig() {
     let config = {};
 
-    // === 1️⃣  Load from environment ===
+    // === 1️⃣ Load from environment ===
     config.token = process.env.DISCORD_TOKEN || null;
-    config.guildID = process.env.GUILD_ID || null;
-    config.channelID = process.env.CHANNEL_ID || null;
-    config.clientID = process.env.CLIENT_ID || null;
-    config.updateTime = parseInt(process.env.UPDATE_TIME || "60");
+    config.clientID = process.env.DISCORD_CLIENT_ID || null;
+    config.guildID = process.env.DISCORD_GUILD_ID || null;
+    config.channelID = process.env.DISCORD_CHANNEL_ID || null;
+    config.updateTime = parseInt(process.env.UPDATE_TIME || process.env.UPDATE_INTERVAL_SEC || "60");
     config.embedColor = process.env.EMBED_COLOR || "#0099ff";
     config.uptimeKumaAPIKey = process.env.API_KEY || null;
 
@@ -34,15 +29,22 @@ function loadConfig() {
         console.warn('Could not read config.json, using env only.');
     }
 
-    // === 2️⃣  Static Monitor Groups ===
     config.monitorGroups = {
         Gaming: ["Lobby", "Skyblock", "Survival", "Creative", "KitPvP", "Factions", "Prison", "Skywars"],
         Discord: ["Discord bot", "Status bot"],
         Web: ["web1", "web2", "web3"]
     };
 
+    // Debug log to confirm envs loaded:
+    console.log("Loaded ENV:", {
+        guildID: config.guildID,
+        channelID: config.channelID,
+        backend: config.urls.backend
+    });
+
     return config;
 }
+
 
 let config = loadConfig();
 

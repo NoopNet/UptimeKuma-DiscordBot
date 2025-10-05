@@ -1,5 +1,5 @@
 {
-    "token": "MTQyNDM2Njk1NTI1MDMyMzYxMw.GHqrGi.P-h4PXiwJpv8FE4L0_-MBi_tGn8rXHL-tIczwI",
+    "token": "${Discord_Token}",
     "guildID": "1329151068340490350",
     "channelID": "1424315293647376385",
     "clientID": "1424366955250323613",

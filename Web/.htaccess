@@ -1,0 +1,11 @@
+# Apache configuration
+ServerName status-api.noopnet.net
+
+# Optional: mod_rewrite aktivieren, falls du API-Routing hast
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.php [L]
+</IfModule>

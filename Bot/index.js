@@ -5,7 +5,6 @@ const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config(); // optional for local .env support
 
 // === CONFIG LOADER ===
 function loadConfig() {

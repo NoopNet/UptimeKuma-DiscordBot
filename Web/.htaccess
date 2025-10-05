@@ -1,11 +1,24 @@
-# Apache configuration
+# ---------------------------
+# Apache configuration for UptimeKuma Backend
+# ---------------------------
+
+# 🔹 Set server name (verhindert AH00558-Warnung)
 ServerName status-api.noopnet.net
 
-# Optional: mod_rewrite aktivieren, falls du API-Routing hast
+# 🔹 Standard-Einstellungen für Rewrite & Zugriff
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+
+  # Wenn die angeforderte Datei oder Ordner nicht existiert → leite auf index.php
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^ index.php [L]
+</IfModule>
+
+# 🔹 CORS erlauben (damit dein Bot oder andere APIs zugreifen können)
+<IfModule mod_headers.c>
+  Header set Access-Control-Allow-Origin "*"
+  Header set Access-Control-Allow-Methods "GET,POST,OPTIONS"
+  Header set Access-Control-Allow-Headers "Content-Type, Authorization"
 </IfModule>

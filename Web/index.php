@@ -1,38 +1,67 @@
 <?php
 // ======================================================
-// ✅ Uptime Kuma PHP Backend (ENV-based, no hardcoded config)
+// 🌐 Uptime Kuma PHP Backend — Coolify Ready (ENV-based)
+// ======================================================
+// Author: NoopNet (Adrian)
+// Version: 1.0.3
+// Description:
+// - Fetches Uptime Kuma Prometheus metrics via API key
+// - Returns clean JSON output for Discord bot or dashboards
+// - Uses only environment variables (no config.json)
 // ======================================================
 
-// 1️⃣ Lade Environment Variablen (werden in Coolify gesetzt)
-$baseUrl  = getenv('KUMA_URL') ?: '';  // Fallback
-$apiKey   = getenv('API_KEY') ?: '';                             // Dein API Key
-$username = getenv('API_USER') ?: '';                            // optional (Basic Auth Username)
+// 1️⃣ Load ENV variables (set in Coolify / Docker)
+$baseUrl   = getenv('KUMA_URL') ?: '';
+$apiKey    = getenv('API_KEY') ?: '';
+$username  = getenv('API_USER') ?: ''; // optional for basic auth
+$debugMode = getenv('DEBUG') ?: false;
 
-// 2️⃣ Baue Ziel-URL für Kuma-Metrics
+// 2️⃣ Basic sanity check
+if (empty($baseUrl) || empty($apiKey)) {
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code(500);
+    echo json_encode([
+        'ok' => false,
+        'error' => 'Missing required environment variables.',
+        'required' => ['KUMA_URL', 'API_KEY']
+    ], JSON_PRETTY_PRINT);
+    exit;
+}
+
+// 3️⃣ Healthcheck (for Coolify)
+if (isset($_GET['health'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'ok' => true,
+        'status' => 'healthy',
+        'timestamp' => date('c')
+    ]);
+    exit;
+}
+
+// 4️⃣ Build target metrics URL
 $url = rtrim($baseUrl, '/') . '/metrics';
+if ($debugMode) error_log("Fetching Uptime Kuma metrics from: $url");
 
-// 3️⃣ Debug-Ausgabe (optional im Container-Log sichtbar)
-error_log("Fetching Uptime Kuma metrics from: $url");
-
-// 4️⃣ HTTP-Request mit cURL
+// 5️⃣ Perform cURL request
 $ch = curl_init($url);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_TIMEOUT => 10,
+    CURLOPT_TIMEOUT => 15,
     CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
-    CURLOPT_USERPWD => "$username:$apiKey", // Auth mit API-Key (oder leer)
+    CURLOPT_USERPWD => "$username:$apiKey", // Basic Auth with key
 ]);
-
 $response = curl_exec($ch);
 $httpStatus = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$error = curl_error($ch);
 curl_close($ch);
 
-// 5️⃣ Wenn erfolgreich, parse die Kuma-Metriken
+// 6️⃣ If success: Parse Prometheus metrics
 if ($httpStatus === 200 && $response) {
     preg_match_all('/monitor_status\{(.*?)\} (\d+)/', $response, $matches, PREG_SET_ORDER);
-
     $data = [];
+
     foreach ($matches as $match) {
         $labels = [];
         foreach (explode(',', $match[1]) as $part) {
@@ -53,21 +82,27 @@ if ($httpStatus === 200 && $response) {
         ];
     }
 
-    // 6️⃣ JSON-Ausgabe für API
+    // 7️⃣ Output as JSON
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'ok' => true,
         'count' => count($data),
         'data' => $data,
+        'source' => $url,
+        'timestamp' => date('c')
     ], JSON_PRETTY_PRINT);
-} else {
-    // 7️⃣ Fehlerausgabe
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode([
-        'ok' => false,
-        'error' => 'Failed to fetch data',
-        'status' => $httpStatus,
-        'url' => $url,
-    ], JSON_PRETTY_PRINT);
+    exit;
 }
+
+// 8️⃣ On error
+header('Content-Type: application/json; charset=utf-8');
+http_response_code($httpStatus ?: 500);
+echo json_encode([
+    'ok' => false,
+    'error' => 'Failed to fetch data from Uptime Kuma.',
+    'details' => $error ?: 'No response received.',
+    'status' => $httpStatus,
+    'url' => $url
+], JSON_PRETTY_PRINT);
+exit;
 ?>

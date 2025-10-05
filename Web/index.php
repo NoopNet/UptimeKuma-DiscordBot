@@ -13,7 +13,6 @@
 // 1️⃣ Load ENV variables (set in Coolify / Docker)
 $baseUrl   = getenv('KUMA_URL') ?: '';
 $apiKey    = getenv('API_KEY') ?: '';
-$username  = getenv('API_USER') ?: ''; // optional for basic auth
 $debugMode = getenv('DEBUG') ?: false;
 
 // 2️⃣ Basic sanity check

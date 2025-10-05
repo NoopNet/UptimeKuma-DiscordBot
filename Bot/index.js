@@ -1,54 +1,56 @@
+// === Uptime Kuma Discord Bot ===
+// Full version with environment variables only
+// (no config.json required)
+
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const axios = require('axios');
+require('dotenv').config(); // optional, just in case .env is used locally
+
+// === CONFIG LOADER ===
 function loadConfig() {
     let config = {};
 
-    // === 1️⃣ Load from environment ===
+    // === Load from Environment Variables ===
     config.token = process.env.DISCORD_TOKEN || null;
     config.clientID = process.env.DISCORD_CLIENT_ID || null;
     config.guildID = process.env.DISCORD_GUILD_ID || null;
     config.channelID = process.env.DISCORD_CHANNEL_ID || null;
-    config.updateTime = parseInt(process.env.UPDATE_TIME || process.env.UPDATE_INTERVAL_SEC || "60");
+
+    config.updateTime = parseInt(
+        process.env.UPDATE_TIME || process.env.UPDATE_INTERVAL_SEC || "60"
+    );
     config.embedColor = process.env.EMBED_COLOR || "#0099ff";
     config.uptimeKumaAPIKey = process.env.API_KEY || null;
 
     config.urls = {
         uptimeKumaBase: process.env.KUMA_URL || "https://uptime.noopnet.net",
         uptimeKumaDashboard: process.env.KUMA_DASHBOARD || "https://uptime.noopnet.net/status/default",
-        backend: process.env.BACKEND_URL || "https://uptime-api.uptime.noopnet.net/api"
+        backend: process.env.BACKEND_URL || "https://uptime-api.uptime.noopnet.net/api",
     };
 
-    try {
-        const jsonPath = path.join(__dirname, '../config.json');
-        if (fs.existsSync(jsonPath)) {
-            console.log('Found config.json, merging...');
-            const fileConfig = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-            config = { ...config, ...fileConfig };
-        } else {
-            console.log('No config.json found — using only environment variables.');
-        }
-    } catch (e) {
-        console.warn('Could not read config.json, using env only.');
-    }
+    // === Debug Info ===
+    console.log("Loaded from ENV:");
+    console.table({
+        DISCORD_TOKEN: config.token ? "✅ set" : "❌ missing",
+        DISCORD_GUILD_ID: config.guildID,
+        DISCORD_CHANNEL_ID: config.channelID,
+        BACKEND_URL: config.urls.backend,
+        KUMA_URL: config.urls.uptimeKumaBase,
+    });
 
+    // === Static Monitor Groups ===
     config.monitorGroups = {
         Gaming: ["Lobby", "Skyblock", "Survival", "Creative", "KitPvP", "Factions", "Prison", "Skywars"],
         Discord: ["Discord bot", "Status bot"],
         Web: ["web1", "web2", "web3"]
     };
 
-    // Debug log to confirm envs loaded:
-    console.log("Loaded ENV:", {
-        guildID: config.guildID,
-        channelID: config.channelID,
-        backend: config.urls.backend
-    });
-
     return config;
 }
 
-
 let config = loadConfig();
 
-// Discord client setup
+// === DISCORD CLIENT SETUP ===
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -62,19 +64,33 @@ let monitorMessages = Object.keys(config.monitorGroups).reduce((acc, groupName) 
     return acc;
 }, {});
 
+// === BOT START ===
 client.once('ready', async () => {
-    console.log('✅ Bot is online as', client.user.tag);
-    const channel = await client.channels.fetch(config.channelID);
-    if (channel && channel.isTextBased()) {
+    console.log(`✅ Bot is online as ${client.user.tag}`);
+
+    try {
+        const guild = await client.guilds.fetch(config.guildID);
+        if (!guild) throw new Error(`Guild not found: ${config.guildID}`);
+
+        const channel = await guild.channels.fetch(config.channelID);
+        if (!channel || !channel.isTextBased()) {
+            throw new Error(`Invalid text channel ID: ${config.channelID}`);
+        }
+
         await clearChannel(channel);
+        await updateMessages();
+
+        console.log(`🕒 Updating every ${config.updateTime} seconds...`);
+        setInterval(updateMessages, config.updateTime * 1000);
+    } catch (err) {
+        console.error("❌ Setup Error:", err.message);
     }
-    await updateMessages();
-    setInterval(updateMessages, config.updateTime * 1000);
 });
 
+// === UPDATE STATUS MESSAGES ===
 async function updateMessages() {
     try {
-        console.log('Fetching from:', config.urls.backend);
+        console.log("🌐 Fetching monitors from:", config.urls.backend);
         const response = await axios.get(config.urls.backend);
         const monitors = response.data;
 
@@ -85,46 +101,55 @@ async function updateMessages() {
             const groupMonitors = monitors.filter(m => monitorNames.includes(m.monitor_name));
             await sendMonitorsMessage(channel, groupName, groupMonitors);
         }
+
     } catch (error) {
-        console.error('❌ Error updating messages:', error.response?.status, error.response?.data || error.message);
+        console.error("❌ Error updating monitors:", error.response?.status, error.response?.data || error.message);
     }
 }
 
+// === SEND / UPDATE EMBEDS ===
 async function sendMonitorsMessage(channel, category, monitors) {
     let description = monitors.map(m => {
         const emoji = ['🔴', '🟢', '🟡', '🔵'][m.status] || '❓';
         return `${emoji} | ${m.monitor_name}`;
-    }).join('\n');
+    }).join('\n') || 'No monitors found.';
 
     const embed = new EmbedBuilder()
-        .setTitle(`${category} Monitor`)
+        .setTitle(`${category} Monitors`)
         .setColor(config.embedColor)
         .setDescription(description)
         .setFooter({ text: `Last updated: ${new Date().toLocaleString()}` })
         .setURL(config.urls.uptimeKumaDashboard);
 
-    const msg = monitorMessages[category]
-        ? await channel.messages.fetch(monitorMessages[category]).catch(() => null)
-        : null;
-
-    if (msg) {
-        await msg.edit({ embeds: [embed] });
-        console.log(`🔁 Updated ${category} monitors`);
-    } else {
+    try {
+        if (monitorMessages[category]) {
+            const msg = await channel.messages.fetch(monitorMessages[category]).catch(() => null);
+            if (msg) {
+                await msg.edit({ embeds: [embed] });
+                console.log(`🔁 Updated ${category} message`);
+                return;
+            }
+        }
         const newMsg = await channel.send({ embeds: [embed] });
         monitorMessages[category] = newMsg.id;
         console.log(`🆕 Sent ${category} monitors message`);
+    } catch (err) {
+        console.error(`❌ Failed to send ${category} message:`, err.message);
     }
 }
 
+// === CLEAR CHANNEL ===
 async function clearChannel(channel) {
     try {
         const fetched = await channel.messages.fetch();
         await channel.bulkDelete(fetched);
-        console.log('🧹 Channel cleared');
-    } catch (e) {
-        console.error('Error clearing channel:', e);
+        console.log("🧹 Channel cleared");
+    } catch (err) {
+        console.error("⚠️ Could not clear channel:", err.message);
     }
 }
 
-client.login(config.token).catch(err => console.error('❌ Login failed:', err));
+// === LOGIN ===
+client.login(config.token).catch(err => {
+    console.error("❌ Discord Login failed:", err.message);
+});

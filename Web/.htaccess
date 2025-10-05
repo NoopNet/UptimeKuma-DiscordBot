@@ -3,7 +3,8 @@
 # ---------------------------
 
 # 🔹 Set server name (verhindert AH00558-Warnung)
-ServerName status-api.noopnet.net
+APACHE_SERVER_NAME=uptime-api.uptime.noopnet.net
+
 
 # 🔹 Standard-Einstellungen für Rewrite & Zugriff
 <IfModule mod_rewrite.c>

@@ -1,0 +1,18 @@
+{
+    "token": "MTQyNDM2Njk1NTI1MDMyMzYxMw.GHqrGi.P-h4PXiwJpv8FE4L0_-MBi_tGn8rXHL-tIczwI",
+    "guildID": "1329151068340490350",
+    "channelID": "1424315293647376385",
+    "clientID": "1424366955250323613",
+    "updateTime": 60,
+    "embedColor": "#0099ff",
+    "uptimeKumaAPIKey": "uk2_V_gzASwwtvoJ8PTW2nZ6vtici3-bAkX5SyacCRXC",
+    "urls": {
+        "uptimeKumaBase": "<uptime_kuma_base_url>",
+        "uptimeKumaDashboard": "https://uptime-api.uptime.noopnet.net/api",
+        "backend": "https://uptime-api.uptime.noopnet.net/api"
+    },
+    "monitorGroups": {
+        "Gaming": ["Lobby", "Skyblock", "Survival", "Creative", "KitPvP", "Factions", "Prison", "Skywars"],
+        "Discord": ["Discord bot", "Status bot"],
+        "Web": ["web1", "web2", "web3"]
+    }

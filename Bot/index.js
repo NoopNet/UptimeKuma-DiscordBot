@@ -44,10 +44,16 @@ const httpClient = axios.create({
 
 // ---- UTILITIES ----
 function statusEmojiFromNumeric(n) {
-  if (n === 1) return { label: "up", emoji: "🟢" };
-  if (n === 0) return { label: "down", emoji: "🔴" };
-  if (n === 2) return { label: "pending", emoji: "🟡" };
-  return { label: "unknown", emoji: "⚪" };
+  // Deine benutzerdefinierten SimpleCloud-Emojis
+  const emojiUp = "<:greencircle:1323346952556908666>";       // Grün – up
+  const emojiDown = "<:rosecircle:1323346953781907496>";      // Rot – down
+  const emojiPending = "<:ambercircle:1323346950862405712>";  // Gelb – pending
+  const emojiUnknown = "<:graycircle:1324007971533099008>";   // Grau – unknown / offline
+
+  if (n === 1) return { label: "up", emoji: emojiUp };
+  if (n === 0) return { label: "down", emoji: emojiDown };
+  if (n === 2) return { label: "pending", emoji: emojiPending };
+  return { label: "unknown", emoji: emojiUnknown };
 }
 
 function latestOf(arr) {

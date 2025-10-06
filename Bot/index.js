@@ -1,54 +1,69 @@
-// === Uptime Kuma Discord Bot (Full private API version) ===
-// Compatible with latest Kuma (heartbeat + status-page merge)
+// === NoopNet Uptime Discord Bot (Full) ===
+// Liest direkt aus Uptime Kuma (private API) und postet hübsch formatierte Embeds.
+//
+// ENV (in Coolify):
+// DISCORD_TOKEN=xxx
+// DISCORD_GUILD_ID=123...
+// DISCORD_CHANNEL_ID=123...
+// KUMA_URL=https://uptime.noopnet.net
+// STATUS_PAGE=default
+// KUMA_API_KEY=eyJhbGciOi...
+// UPDATE_TIME=60
+// EMBED_COLOR=#ff7a00   (optional; Standard ist Orange)
 
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const axios = require('axios');
-const http = require('http');
+const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
+const axios = require("axios");
+const http = require("http");
 
-// ---- CONFIG ----
+// ---------- CONFIG ----------
 const CONFIG = {
   token: process.env.DISCORD_TOKEN,
   guildID: process.env.DISCORD_GUILD_ID,
   channelID: process.env.DISCORD_CHANNEL_ID,
 
   updateTime: parseInt(process.env.UPDATE_TIME || "60", 10),
-  embedColor: process.env.EMBED_COLOR || "#0099ff",
 
-  kumaBase: process.env.KUMA_URL || "https://uptime.noopnet.net",
+  kumaBase: (process.env.KUMA_URL || "https://uptime.noopnet.net").replace(/\/+$/, ""),
   statusSlug: process.env.STATUS_PAGE || "default",
-  apiKey: process.env.KUMA_API_KEY || null, // required for private Kuma
+  apiKey: process.env.KUMA_API_KEY || null,
+
+  // Embed-Styling
+  embedColor: process.env.EMBED_COLOR || "#ff7a00", // Orange
+  authorName: "Webseiten-Status · NoopNet",
+  authorIcon: "https://uptime.noopnet.net/favicon.ico",
+  botVersion: "NoopNet-uptime-Bot v1.0",
 };
 
-// ---- DEBUG ----
+// ---------- DEBUG ----------
 console.table({
   DISCORD_TOKEN: CONFIG.token ? "✅ set" : "❌ missing",
   GUILD_ID: CONFIG.guildID || "❌",
   CHANNEL_ID: CONFIG.channelID || "❌",
   KUMA_URL: CONFIG.kumaBase,
   STATUS_PAGE: CONFIG.statusSlug,
-  KUMA_API_KEY: CONFIG.apiKey ? "✅ set" : "❌ missing",
+  KUMA_API_KEY: CONFIG.apiKey ? "✅ set" : "❌ missing (required for private)",
 });
 
-// ---- DISCORD CLIENT ----
+// ---------- DISCORD CLIENT ----------
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 });
 
+// eine Nachricht pro Bot, die immer aktualisiert wird
 let messageId = null;
 
-// ---- HTTP CLIENT ----
+// ---------- HTTP CLIENT ----------
 const httpClient = axios.create({
   timeout: 10000,
   headers: CONFIG.apiKey ? { Authorization: `Bearer ${CONFIG.apiKey}` } : {},
 });
 
-// ---- UTILITIES ----
+// ---------- EMOJIS (deine SimpleCloud-Emojis) ----------
 function statusEmojiFromNumeric(n) {
-  // Deine benutzerdefinierten SimpleCloud-Emojis
-  const emojiUp = "<:Green:1424768725009174610>";       // Grün – up
-  const emojiDown = "<:Red:1424769166702809200>";      // Rot – down
+  const emojiUp = "<:Green:1424768725009174610>";        // Grün – up
+  const emojiDown = "<:Red:1424769166702809200>";        // Rot – down
   const emojiPending = "<:Yellow:1424769287171735583>";  // Gelb – pending
-  const emojiUnknown = "<:Gray:1424769261313720390>";   // Grau – unknown / offline
+  const emojiUnknown = "<:Gray:1424769261313720390>";    // Grau – unknown / offline
 
   if (n === 1) return { label: "up", emoji: emojiUp };
   if (n === 0) return { label: "down", emoji: emojiDown };
@@ -56,108 +71,98 @@ function statusEmojiFromNumeric(n) {
   return { label: "unknown", emoji: emojiUnknown };
 }
 
+// ---------- HELPERS ----------
 function latestOf(arr) {
   if (!Array.isArray(arr) || arr.length === 0) return null;
-  return arr[arr.length - 1];
+  return arr[arr.length - 1]; // neuester Heartbeat (Kuma hängt an)
 }
 
-// ---- FETCH MONITORS ----
+// Normalisiere Datensätze in ein einheitliches Array
+// [{ id, name, group, statusLabel, emoji, ping, uptime }]
 async function fetchMonitors() {
-  const base = CONFIG.kumaBase.replace(/\/+$/, "");
-  const slug = encodeURIComponent(CONFIG.statusSlug);
+  const slugEnc = encodeURIComponent(CONFIG.statusSlug);
 
-  // 1️⃣ Fetch monitor meta (names, groups)
-  const metaRes = await httpClient.get(`${base}/api/status-page/${slug}`);
+  // 1) Meta: Gruppen + Monitor-Namen (liefert IDs)
+  const metaRes = await httpClient.get(`${CONFIG.kumaBase}/api/status-page/${slugEnc}`);
   const groups = Array.isArray(metaRes.data?.publicGroupList) ? metaRes.data.publicGroupList : [];
-  const nameById = new Map();
+
+  const nameById = new Map(); // id -> { name, group }
   for (const g of groups) {
     const gName = g?.name || null;
-    const monitors = Array.isArray(g?.monitorList) ? g.monitorList : [];
-    for (const m of monitors) {
+    const list = Array.isArray(g?.monitorList) ? g.monitorList : [];
+    for (const m of list) {
       if (m?.id != null) {
         nameById.set(String(m.id), { name: m.name || `Monitor ${m.id}`, group: gName });
       }
     }
   }
 
-  // 2️⃣ Fetch heartbeat data
-  const hbRes = await httpClient.get(`${base}/api/status-page/heartbeat/${slug}`);
+  // 2) Heartbeats + Uptime-Liste
+  const hbRes = await httpClient.get(`${CONFIG.kumaBase}/api/status-page/heartbeat/${slugEnc}`);
   const heartbeatList = hbRes.data?.heartbeatList || {};
   const uptimeList = hbRes.data?.uptimeList || {};
 
-  // 3️⃣ Merge both datasets
-  const result = [];
+  // 3) Merge beider Sichten
+  const out = [];
   for (const [id, hbArray] of Object.entries(heartbeatList)) {
     const latest = latestOf(hbArray);
     const meta = nameById.get(String(id)) || { name: `Monitor ${id}`, group: null };
     const map = statusEmojiFromNumeric(latest?.status);
-    const uptimeKey24h = `${id}_24`;
-    const uptimePct =
-      typeof uptimeList[uptimeKey24h] === "number" ? uptimeList[uptimeKey24h] * 100 : null;
+    const uptimeKey24 = `${id}_24`;
+    const uptimePct = typeof uptimeList[uptimeKey24] === "number" ? uptimeList[uptimeKey24] * 100 : null;
 
-    result.push({
+    out.push({
       id: Number(id),
       name: meta.name,
       group: meta.group,
-      status: map.label,
+      statusLabel: map.label,     // "up" | "down" | "pending" | "unknown"
       emoji: map.emoji,
       ping: typeof latest?.ping === "number" ? latest.ping : null,
       uptime: typeof uptimePct === "number" ? uptimePct : null,
     });
   }
 
-  // Sort for clean embed
-  result.sort(
-    (a, b) =>
-      (a.group || "").localeCompare(b.group || "") ||
-      a.name.localeCompare(b.name)
-  );
-
-  return result;
+  // Optisch: erst Gruppe, dann Name
+  out.sort((a, b) => (a.group || "").localeCompare(b.group || "") || a.name.localeCompare(b.name));
+  return out;
 }
 
-// ---- BUILD & SEND EMBED ----
+// ---------- EMBED AUFBAU & SEND ----------
 async function updateStatus(channel) {
   try {
     console.log(`🌐 Fetching from Kuma (auth=${CONFIG.apiKey ? "yes" : "no"})…`);
     const monitors = await fetchMonitors();
 
-    if (!Array.isArray(monitors) || monitors.length === 0) {
-      console.warn("⚠️ No monitors found in response.");
-    }
-
-    // Group by category name
+    // Gruppieren
     const grouped = {};
     for (const m of monitors) {
-      const key = m.group || "Ungrouped";
+      const key = m.group || "Allgemein";
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(m);
     }
 
-    // Build lines
+    // Schöne, kompakte Darstellung – ohne Worte "UP/DOWN", Ping am Ende
     const lines = [];
     for (const [group, list] of Object.entries(grouped)) {
-      lines.push(`**__${group}__**`);
+      lines.push(`> **${group}**`);
       for (const m of list) {
-        const pct =
-          typeof m.uptime === "number" ? `${m.uptime.toFixed(2)}%` : "—";
-        const ping =
-          typeof m.ping === "number" ? `${m.ping} ms` : "";
-        lines.push(
-          `${m.emoji} **${m.name}** — ${m.status.toUpperCase()} ${ping ? `(${ping})` : ""} ${pct !== "—" ? `• ${pct}` : ""}`
-        );
+        const pct = typeof m.uptime === "number" ? `${m.uptime.toFixed(2)}%` : "—";
+        const ping = typeof m.ping === "number" ? `Ping ${m.ping} ms` : "Ping —";
+        lines.push(`> ${m.emoji}  **${m.name}**  •  ${pct}  •  ${ping}`);
       }
-      lines.push(""); // spacing
+      lines.push(""); // Abstand
     }
 
     const embed = new EmbedBuilder()
+      .setAuthor({ name: CONFIG.authorName, iconURL: CONFIG.authorIcon })
       .setTitle("📊 Uptime Status")
       .setColor(CONFIG.embedColor)
-      .setDescription(lines.join("\n") || "No monitors found.")
-      .setFooter({ text: `Last update: ${new Date().toLocaleString()}` })
-      .setURL(`${CONFIG.kumaBase.replace(/\/+$/, "")}/status/${encodeURIComponent(CONFIG.statusSlug)}`);
+      .setDescription(lines.join("\n") || "_Keine Monitore gefunden._")
+      .setURL(`${CONFIG.kumaBase}/status/${encodeURIComponent(CONFIG.statusSlug)}`)
+      .setFooter({
+        text: `Last updated: ${new Date().toLocaleString("de-DE")} • ${CONFIG.botVersion}`,
+      });
 
-    // Update or send message
     if (messageId) {
       const msg = await channel.messages.fetch(messageId).catch(() => null);
       if (msg) {
@@ -176,26 +181,23 @@ async function updateStatus(channel) {
   }
 }
 
-// ---- CLEAR CHANNEL ----
-async function clearChannel(channel) {
-  try {
-    const fetched = await channel.messages.fetch({ limit: 100 });
-    if (fetched.size) await channel.bulkDelete(fetched);
-    console.log("🧹 Channel cleared");
-  } catch (e) {
-    console.warn("⚠️ Could not clear channel:", e.message);
-  }
-}
-
-// ---- DISCORD LOGIN ----
+// ---------- DISCORD BOOTSTRAP ----------
 client.once("ready", async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
   try {
     const guild = await client.guilds.fetch(CONFIG.guildID);
     const channel = await guild.channels.fetch(CONFIG.channelID);
-    if (!channel?.isTextBased()) throw new Error("Channel not text-based.");
+    if (!channel?.isTextBased()) throw new Error("Channel is not text-based.");
 
-    await clearChannel(channel);
+    // optional: Start einmal aufräumen
+    try {
+      const fetched = await channel.messages.fetch({ limit: 100 });
+      if (fetched.size) await channel.bulkDelete(fetched);
+      console.log("🧹 Channel cleared");
+    } catch (e) {
+      console.warn("⚠️ Could not clear channel:", e.message);
+    }
+
     await updateStatus(channel);
     console.log(`🕒 Updating every ${CONFIG.updateTime}s`);
     setInterval(() => updateStatus(channel), CONFIG.updateTime * 1000);
@@ -204,11 +206,9 @@ client.once("ready", async () => {
   }
 });
 
-client.login(CONFIG.token).catch((e) =>
-  console.error("❌ Discord login failed:", e.message)
-);
+client.login(CONFIG.token).catch(e => console.error("❌ Discord login failed:", e.message));
 
-// ---- HEALTHZ (Coolify support) ----
+// ---------- HEALTH ENDPOINT (Coolify) ----------
 const port = process.env.HEALTH_PORT || 3000;
 http
   .createServer((req, res) => {

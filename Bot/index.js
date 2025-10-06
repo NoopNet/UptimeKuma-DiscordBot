@@ -45,10 +45,10 @@ const httpClient = axios.create({
 // ---- UTILITIES ----
 function statusEmojiFromNumeric(n) {
   // Deine benutzerdefinierten SimpleCloud-Emojis
-  const emojiUp = "<:greencircle:1323346952556908666>";       // Grün – up
-  const emojiDown = "<:rosecircle:1323346953781907496>";      // Rot – down
-  const emojiPending = "<:ambercircle:1323346950862405712>";  // Gelb – pending
-  const emojiUnknown = "<:graycircle:1324007971533099008>";   // Grau – unknown / offline
+  const emojiUp = "<:Green:1424768725009174610>";       // Grün – up
+  const emojiDown = "<:Red:1424769166702809200>";      // Rot – down
+  const emojiPending = "<:Yellow:1424769287171735583>";  // Gelb – pending
+  const emojiUnknown = "<:Gray:1424769261313720390>";   // Grau – unknown / offline
 
   if (n === 1) return { label: "up", emoji: emojiUp };
   if (n === 0) return { label: "down", emoji: emojiDown };
